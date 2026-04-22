@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { User } from "@supabase/supabase-js"
+import { toast } from "sonner"
 
 export default function RegistroPage() {
   const [isLoading, setIsLoading] = useState(false)
@@ -36,7 +37,7 @@ export default function RegistroPage() {
       }
       setUser(user)
       
-      // Pre-fill with Google data if available
+      // Pre-llenado con metadatos de Google si existen
       if (user.user_metadata) {
         setFormData(prev => ({
           ...prev,
@@ -48,33 +49,52 @@ export default function RegistroPage() {
     getUser()
   }, [supabase, router])
 
- const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user) return
 
     setIsLoading(true)
     try {
-      // Usamos UPSERT en lugar de UPDATE para que cree el registro si no existe
-      const { error } = await supabase
+      // 1. Guardar datos en la tabla de información personal
+      const { error: errorPersonal } = await supabase
         .from("user_profiles")
         .upsert({
-          id: user.id, // Es obligatorio incluir el ID para el upsert
+          id: user.id,
           ...formData,
           registration_complete: true,
           updated_at: new Date().toISOString(),
         })
 
-      if (error) {
-        console.error("Error saving profile:", error.message)
-        alert("Error al guardar: " + error.message) // Para que veas el error en pantalla
-        return
-      }
+      if (errorPersonal) throw errorPersonal
 
-      // IMPORTANTE: Asegúrate de que esta sea la ruta de tu dashboard
+      // 2. Inicializar la tabla de apariencia con el tema Esmeralda por defecto
+      // Usamos los colores extraídos de tu configuración visual
+      const { error: errorTema } = await supabase
+        .from("profiles")
+        .upsert({
+          id: user.id,
+          // Ajusta los nombres de las columnas según tu base de datos (ej. theme_settings)
+          theme_settings: {
+            primary: "#10b981",    // Emerald 500
+            secondary: "#0d9488",  // Teal 600
+            accent: "#f59e0b",     // Amber 500
+            background: "#0a0a0a", // Fondo oscuro de tu app
+            text: "#ffffff",
+            sidebar: "#121212",
+            card: "#121212"
+          },
+          font_family: "Inter",
+          updated_at: new Date().toISOString(),
+        })
+
+      if (errorTema) throw errorTema
+
+      toast.success("¡Perfil completado con éxito!")
       router.push("/dashboard") 
       
-    } catch (error) {
-      console.error("Unexpected error:", error)
+    } catch (error: any) {
+      console.error("Error en el proceso de registro:", error.message)
+      toast.error("Error al guardar: " + error.message)
     } finally {
       setIsLoading(false)
     }
@@ -82,7 +102,7 @@ export default function RegistroPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 to-teal-100 dark:from-gray-900 dark:to-gray-800">
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
         <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
       </div>
     )
@@ -90,17 +110,18 @@ export default function RegistroPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 to-teal-100 dark:from-gray-900 dark:to-gray-800 p-4">
-      <Card className="w-full max-w-2xl shadow-xl border-0">
+      <Card className="w-full max-w-2xl shadow-xl border-0 bg-white dark:bg-[#121212]">
         <CardHeader className="text-center space-y-2">
           <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">
             Completa tu perfil
           </CardTitle>
           <CardDescription className="text-gray-600 dark:text-gray-400">
-            Necesitamos algunos datos básicos para personalizar tu experiencia
+            Necesitamos algunos datos básicos para personalizar tu experiencia financiera
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Fila: Nombres y Apellidos */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="nombres">Nombres *</Label>
@@ -108,8 +129,9 @@ export default function RegistroPage() {
                   id="nombres"
                   value={formData.nombres}
                   onChange={(e) => setFormData(prev => ({ ...prev, nombres: e.target.value }))}
-                  placeholder="Ingresa tus nombres"
+                  placeholder="Ej: Juan"
                   required
+                  className="bg-gray-50 dark:bg-[#1a1a1a]"
                 />
               </div>
               <div className="space-y-2">
@@ -118,12 +140,14 @@ export default function RegistroPage() {
                   id="apellidos"
                   value={formData.apellidos}
                   onChange={(e) => setFormData(prev => ({ ...prev, apellidos: e.target.value }))}
-                  placeholder="Ingresa tus apellidos"
+                  placeholder="Ej: Pérez"
                   required
+                  className="bg-gray-50 dark:bg-[#1a1a1a]"
                 />
               </div>
             </div>
 
+            {/* Fila: Cédula y Teléfono */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="cedula">Cédula / Documento *</Label>
@@ -131,8 +155,9 @@ export default function RegistroPage() {
                   id="cedula"
                   value={formData.cedula}
                   onChange={(e) => setFormData(prev => ({ ...prev, cedula: e.target.value }))}
-                  placeholder="Número de documento"
+                  placeholder="Número de identidad"
                   required
+                  className="bg-gray-50 dark:bg-[#1a1a1a]"
                 />
               </div>
               <div className="space-y-2">
@@ -142,12 +167,14 @@ export default function RegistroPage() {
                   type="tel"
                   value={formData.telefono}
                   onChange={(e) => setFormData(prev => ({ ...prev, telefono: e.target.value }))}
-                  placeholder="+57 300 123 4567"
+                  placeholder="+57 300 000 0000"
                   required
+                  className="bg-gray-50 dark:bg-[#1a1a1a]"
                 />
               </div>
             </div>
 
+            {/* Fila: Fecha y Género */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="fecha_nacimiento">Fecha de nacimiento</Label>
@@ -156,6 +183,7 @@ export default function RegistroPage() {
                   type="date"
                   value={formData.fecha_nacimiento}
                   onChange={(e) => setFormData(prev => ({ ...prev, fecha_nacimiento: e.target.value }))}
+                  className="bg-gray-50 dark:bg-[#1a1a1a]"
                 />
               </div>
               <div className="space-y-2">
@@ -164,10 +192,10 @@ export default function RegistroPage() {
                   value={formData.genero}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, genero: value }))}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona tu género" />
+                  <SelectTrigger className="bg-gray-50 dark:bg-[#1a1a1a]">
+                    <SelectValue placeholder="Selecciona" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white dark:bg-[#121212]">
                     <SelectItem value="masculino">Masculino</SelectItem>
                     <SelectItem value="femenino">Femenino</SelectItem>
                     <SelectItem value="otro">Otro</SelectItem>
@@ -183,10 +211,12 @@ export default function RegistroPage() {
                 id="direccion"
                 value={formData.direccion}
                 onChange={(e) => setFormData(prev => ({ ...prev, direccion: e.target.value }))}
-                placeholder="Tu dirección de residencia"
+                placeholder="Dirección de residencia"
+                className="bg-gray-50 dark:bg-[#1a1a1a]"
               />
             </div>
 
+            {/* Fila: Ciudad y País */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="ciudad">Ciudad</Label>
@@ -194,7 +224,8 @@ export default function RegistroPage() {
                   id="ciudad"
                   value={formData.ciudad}
                   onChange={(e) => setFormData(prev => ({ ...prev, ciudad: e.target.value }))}
-                  placeholder="Ciudad de residencia"
+                  placeholder="Ej: Bogotá"
+                  className="bg-gray-50 dark:bg-[#1a1a1a]"
                 />
               </div>
               <div className="space-y-2">
@@ -203,18 +234,17 @@ export default function RegistroPage() {
                   value={formData.pais}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, pais: value }))}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona tu país" />
+                  <SelectTrigger className="bg-gray-50 dark:bg-[#1a1a1a]">
+                    <SelectValue placeholder="Selecciona" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white dark:bg-[#121212]">
                     <SelectItem value="Colombia">Colombia</SelectItem>
                     <SelectItem value="Mexico">México</SelectItem>
                     <SelectItem value="Argentina">Argentina</SelectItem>
                     <SelectItem value="Chile">Chile</SelectItem>
                     <SelectItem value="Peru">Perú</SelectItem>
                     <SelectItem value="Ecuador">Ecuador</SelectItem>
-                    <SelectItem value="Venezuela">Venezuela</SelectItem>
-                    <SelectItem value="Espana">España</SelectItem>
+                    <SelectItem value="España">España</SelectItem>
                     <SelectItem value="Otro">Otro</SelectItem>
                   </SelectContent>
                 </Select>
@@ -224,15 +254,15 @@ export default function RegistroPage() {
             <Button
               type="submit"
               disabled={isLoading}
-              className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+              className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all"
             >
               {isLoading ? (
                 <div className="flex items-center gap-2">
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Guardando...</span>
+                  <span>Sincronizando perfil...</span>
                 </div>
               ) : (
-                "Completar registro"
+                "Finalizar Registro"
               )}
             </Button>
           </form>
