@@ -1,0 +1,16 @@
+{
+  "appId": "com.misfinanzas.app",
+  "appName": "Mis Finanzas",
+  "webDir": "out",
+  "server": {
+    "androidScheme": "com.misfinanzas.app",
+    "hostname": "app"
+  },
+  "plugins": {
+    "GoogleAuth": {
+      "scopes": ["profile", "email"],
+      "serverClientId": "972030916699-k3gmk7alkv1ua6h66oohmhlvu21qstq4.apps.googleusercontent.com",
+      "forceCodeForRefreshToken": true
+    }
+  }
+}
