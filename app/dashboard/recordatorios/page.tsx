@@ -21,6 +21,7 @@ import { format, differenceInDays, parseISO, addMonths } from "date-fns"
 import { es } from "date-fns/locale"
 import { toast } from "sonner"
 
+// --- MODAL DE CREACIÓN/EDICIÓN ---
 function ModalRecordatorio({ 
   userCedula, 
   userNombre,
@@ -53,7 +54,7 @@ function ModalRecordatorio({
       frecuencia: formData.get("frecuencia"),
       categoria: formData.get("categoria"),
       user_id: userCedula,
-      user_nombre: userNombre, // Guardamos el nombre para el bot
+      user_nombre: userNombre,
       telefono_destino: userPhone,
       telegram_id: userTelegram,
       estado: editData?.estado || 'pendiente'
@@ -81,7 +82,7 @@ function ModalRecordatorio({
             <Pencil size={18}/>
           </Button>
         ) : (
-          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 font-bold">
             <Plus size={18} /> Nuevo Recordatorio
           </Button>
         )}
@@ -132,7 +133,7 @@ function ModalRecordatorio({
               <Input name="categoria" defaultValue={editData?.categoria} placeholder="Servicios" className="bg-white/5 border-white/10 text-white" />
             </div>
           </div>
-          <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" disabled={loading}>
+          <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold" disabled={loading}>
             {loading ? "Procesando..." : editData ? "Guardar Cambios" : "Confirmar Recordatorio"}
           </Button>
         </form>
@@ -141,6 +142,7 @@ function ModalRecordatorio({
   )
 }
 
+// --- PÁGINA PRINCIPAL ---
 export default function RecordatoriosPage() {
   const supabase = createClient()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -170,19 +172,28 @@ export default function RecordatoriosPage() {
 
   useEffect(() => { fetchData() }, [])
 
+  // PRUEBAS INDIVIDUALES
   const handleTestBot = async () => {
+    if (!profile?.cedula) return toast.error("Error de perfil");
     setIsTestingBot(true);
     try {
-      await fetch(`https://rdyaeslcznsynfgowutw.supabase.co/functions/v1/rapid-handler?type=telegram&t=${Date.now()}`, { method: 'GET', mode: 'cors' });
-      toast.success("✅ Prueba de Telegram enviada");
+      await fetch(`https://rdyaeslcznsynfgowutw.supabase.co/functions/v1/rapid-handler?type=telegram&userId=${profile.cedula}&t=${Date.now()}`, { 
+        method: 'GET', 
+        mode: 'cors' 
+      });
+      toast.success("✅ Tu prueba de Telegram ha sido enviada");
     } catch (error) { toast.error("Error en Telegram"); } finally { setIsTestingBot(false); }
   };
 
   const handleTestWhatsApp = async () => {
+    if (!profile?.cedula) return toast.error("Error de perfil");
     setIsTestingWhatsApp(true);
     try {
-      await fetch(`https://rdyaeslcznsynfgowutw.supabase.co/functions/v1/rapid-handler?type=whatsapp&t=${Date.now()}`, { method: 'GET', mode: 'cors' });
-      toast.success("✅ WhatsApp enviado");
+      await fetch(`https://rdyaeslcznsynfgowutw.supabase.co/functions/v1/rapid-handler?type=whatsapp&userId=${profile.cedula}&t=${Date.now()}`, { 
+        method: 'GET', 
+        mode: 'cors' 
+      });
+      toast.success("✅ Tu prueba de WhatsApp ha sido enviada");
     } catch (error) { toast.error("Error en WhatsApp"); } finally { setIsTestingWhatsApp(false); }
   };
 
@@ -245,15 +256,15 @@ export default function RecordatoriosPage() {
         <main className="p-4 sm:p-8 space-y-6 max-w-5xl mx-auto">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Recordatorios</h1>
+              <h1 className="text-4xl font-black tracking-tight">Recordatorios</h1>
               <p className="text-gray-400 text-sm">Alertas automáticas vía WhatsApp y Telegram.</p>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={handleTestWhatsApp} disabled={isTestingWhatsApp} className="border-green-500/30 text-green-500 hover:bg-green-500/10 gap-2">
+              <Button variant="outline" onClick={handleTestWhatsApp} disabled={isTestingWhatsApp} className="border-green-500/30 text-green-500 hover:bg-green-500/10 gap-2 font-bold">
                 {isTestingWhatsApp ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle size={18} />}
                 Prueba WA
               </Button>
-              <Button variant="outline" onClick={handleTestBot} disabled={isTestingBot} className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10 gap-2">
+              <Button variant="outline" onClick={handleTestBot} disabled={isTestingBot} className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10 gap-2 font-bold">
                 {isTestingBot ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send size={16} />}
                 Prueba TG
               </Button>
@@ -267,7 +278,7 @@ export default function RecordatoriosPage() {
                 <div className="p-3 bg-orange-500/20 rounded-2xl"><AlertCircle className="text-orange-500 h-8 w-8" /></div>
                 <div>
                   <p className="text-xs text-orange-500/80 uppercase font-black">Total Pendiente</p>
-                  <p className="text-4xl font-black">{formatCurrency(total)}</p>
+                  <p className="text-4xl font-black tracking-tighter">{formatCurrency(total)}</p>
                 </div>
               </div>
             </CardContent>
@@ -281,7 +292,7 @@ export default function RecordatoriosPage() {
                     const status = getStatusInfo(r.fecha_vencimiento, r.estado)
                     const Icon = status.icon
                     return (
-                    <Card key={r.id} className="bg-[#121212] border-white/5 hover:border-emerald-500/30 transition-all overflow-hidden rounded-2xl">
+                    <Card key={r.id} className="bg-zinc-900/40 border border-white/5 hover:border-emerald-500/30 transition-all overflow-hidden rounded-2xl">
                         <CardContent className="p-0 flex items-stretch">
                             <div className={cn("w-1.5", status.class.split(' ')[0])} />
                             <div className="p-4 flex flex-col sm:flex-row items-center justify-between w-full gap-4">
@@ -297,7 +308,7 @@ export default function RecordatoriosPage() {
                                 </div>
                                 <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto">
                                     <div className="text-right">
-                                        <p className="font-black text-xl text-white">{formatCurrency(r.monto)}</p>
+                                        <p className="font-black text-xl text-white tracking-tighter">{formatCurrency(r.monto)}</p>
                                         <p className="text-[10px] text-orange-500">Aviso {r.recordar_dias_antes} días antes</p>
                                     </div>
                                     <div className="flex gap-1">
