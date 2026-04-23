@@ -9,7 +9,15 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger,
+  DialogDescription,
+  DialogFooter 
+} from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { 
   Plus, Pencil, Trash2, Bell, Calendar, Clock, 
@@ -20,6 +28,53 @@ import { createClient } from "@/lib/supabase/client"
 import { format, differenceInDays, parseISO, addMonths } from "date-fns"
 import { es } from "date-fns/locale"
 import { toast } from "sonner"
+
+// --- COMPONENTE MODAL DE ELIMINACIÓN ---
+function ModalEliminar({ id, titulo, onDeleted }: { id: number, titulo: string, onDeleted: () => void }) {
+  const supabase = createClient()
+  const [open, setOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const handleEliminar = async () => {
+    setDeleting(true)
+    const { error } = await supabase.from("recordatorios").delete().eq('id', id)
+    
+    if (error) {
+      toast.error("No se pudo eliminar: " + error.message)
+    } else {
+      toast.success("Recordatorio eliminado")
+      setOpen(false)
+      onDeleted()
+    }
+    setDeleting(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-9 w-9 text-rose-500 hover:bg-rose-500/10">
+          <Trash2 size={18}/>
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="bg-[#121212] border-white/10 text-white sm:max-w-[400px]">
+        <DialogHeader>
+          <DialogTitle className="text-xl font-bold">¿Eliminar recordatorio?</DialogTitle>
+          <DialogDescription className="text-zinc-400">
+            Estás a punto de borrar <strong>{titulo}</strong>. Esta acción no se puede deshacer.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="ghost" onClick={() => setOpen(false)} className="text-white hover:bg-white/5">
+            Cancelar
+          </Button>
+          <Button onClick={handleEliminar} disabled={deleting} className="bg-rose-600 hover:bg-rose-700 text-white font-bold">
+            {deleting ? <Loader2 className="animate-spin" /> : "Sí, eliminar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 // --- MODAL DE CREACIÓN/EDICIÓN ---
 function ModalRecordatorio({ 
@@ -82,7 +137,7 @@ function ModalRecordatorio({
             <Pencil size={18}/>
           </Button>
         ) : (
-          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 font-bold">
+          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 font-bold shadow-lg shadow-emerald-900/20">
             <Plus size={18} /> Nuevo Recordatorio
           </Button>
         )}
@@ -134,7 +189,7 @@ function ModalRecordatorio({
             </div>
           </div>
           <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold" disabled={loading}>
-            {loading ? "Procesando..." : editData ? "Guardar Cambios" : "Confirmar Recordatorio"}
+            {loading ? <Loader2 className="animate-spin" /> : editData ? "Guardar Cambios" : "Confirmar Recordatorio"}
           </Button>
         </form>
       </DialogContent>
@@ -172,7 +227,6 @@ export default function RecordatoriosPage() {
 
   useEffect(() => { fetchData() }, [])
 
-  // PRUEBAS INDIVIDUALES
   const handleTestBot = async () => {
     if (!profile?.cedula) return toast.error("Error de perfil");
     setIsTestingBot(true);
@@ -181,7 +235,7 @@ export default function RecordatoriosPage() {
         method: 'GET', 
         mode: 'cors' 
       });
-      toast.success("✅ Tu prueba de Telegram ha sido enviada");
+      toast.success("✅ Prueba enviada");
     } catch (error) { toast.error("Error en Telegram"); } finally { setIsTestingBot(false); }
   };
 
@@ -193,7 +247,7 @@ export default function RecordatoriosPage() {
         method: 'GET', 
         mode: 'cors' 
       });
-      toast.success("✅ Tu prueba de WhatsApp ha sido enviada");
+      toast.success("✅ WhatsApp enviado");
     } catch (error) { toast.error("Error en WhatsApp"); } finally { setIsTestingWhatsApp(false); }
   };
 
@@ -221,19 +275,12 @@ export default function RecordatoriosPage() {
         }
 
         await supabase.from("recordatorios").insert([nuevoRecordatorio])
-        toast.success("¡Pago registrado! Próximo mes programado.")
+        toast.success("¡Pago registrado!")
       } else {
         toast.success("¡Pago registrado!");
       }
       fetchData();
     } catch (error: any) { toast.error("Error: " + error.message) }
-  }
-
-  const handleEliminar = async (id: number) => {
-    if (!confirm("¿Eliminar este recordatorio?")) return
-    const { error } = await supabase.from("recordatorios").delete().eq('id', id)
-    if (error) toast.error("Error al borrar")
-    else { toast.success("Eliminado"); fetchData(); }
   }
 
   const formatCurrency = (amount: number) => new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(amount)
@@ -272,7 +319,7 @@ export default function RecordatoriosPage() {
             </div>
           </div>
 
-          <Card className="border-white/10 bg-gradient-to-br from-orange-500/10 via-transparent to-transparent rounded-3xl">
+          <Card className="border-white/10 bg-gradient-to-br from-orange-500/10 via-transparent to-transparent rounded-3xl overflow-hidden shadow-2xl">
             <CardContent className="p-6 flex flex-col md:flex-row justify-between items-center gap-4">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-orange-500/20 rounded-2xl"><AlertCircle className="text-orange-500 h-8 w-8" /></div>
@@ -314,7 +361,9 @@ export default function RecordatoriosPage() {
                                     <div className="flex gap-1">
                                         <Button onClick={() => handleMarcarComoPagado(r)} variant="ghost" size="icon" className="h-9 w-9 text-emerald-500 hover:bg-emerald-500/10"><CheckCircle2 size={18}/></Button>
                                         <ModalRecordatorio userCedula={profile?.cedula} userNombre={profile?.nombres} userPhone={profile?.telefono} userTelegram={profile?.telegram_id} onRefresh={fetchData} editData={r} />
-                                        <Button onClick={() => handleEliminar(r.id)} variant="ghost" size="icon" className="h-9 w-9 text-rose-500 hover:bg-rose-500/10"><Trash2 size={18}/></Button>
+                                        
+                                        {/* NUEVO BOTÓN CON MODAL DE ELIMINAR */}
+                                        <ModalEliminar id={r.id} titulo={r.titulo} onDeleted={fetchData} />
                                     </div>
                                 </div>
                             </div>
