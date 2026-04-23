@@ -21,15 +21,16 @@ import { format, differenceInDays, parseISO, addMonths } from "date-fns"
 import { es } from "date-fns/locale"
 import { toast } from "sonner"
 
-// --- COMPONENTE DE FORMULARIO MODAL ---
 function ModalRecordatorio({ 
   userCedula, 
+  userNombre,
   userPhone, 
   userTelegram, 
   onRefresh, 
   editData = null 
 }: { 
   userCedula: string, 
+  userNombre: string,
   userPhone: string,
   userTelegram: string,
   onRefresh: () => void, 
@@ -52,6 +53,7 @@ function ModalRecordatorio({
       frecuencia: formData.get("frecuencia"),
       categoria: formData.get("categoria"),
       user_id: userCedula,
+      user_nombre: userNombre, // Guardamos el nombre para el bot
       telefono_destino: userPhone,
       telegram_id: userTelegram,
       estado: editData?.estado || 'pendiente'
@@ -139,7 +141,6 @@ function ModalRecordatorio({
   )
 }
 
-// --- PÁGINA PRINCIPAL ---
 export default function RecordatoriosPage() {
   const supabase = createClient()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -169,7 +170,6 @@ export default function RecordatoriosPage() {
 
   useEffect(() => { fetchData() }, [])
 
-  // Botones de prueba simplificados (La Edge Function ya sabe a quién enviar)
   const handleTestBot = async () => {
     setIsTestingBot(true);
     try {
@@ -188,11 +188,9 @@ export default function RecordatoriosPage() {
 
   const handleMarcarComoPagado = async (reminder: any) => {
     try {
-      // 1. Marcar actual como completado
       const { error: updateError } = await supabase.from("recordatorios").update({ estado: 'completado' }).eq('id', reminder.id)
       if (updateError) throw updateError
 
-      // 2. Si es mensual, crear el del próximo mes automáticamente
       if (reminder.frecuencia === "Mensual") {
         const fechaActual = parseISO(reminder.fecha_vencimiento)
         const proximaFecha = addMonths(fechaActual, 1)
@@ -205,6 +203,7 @@ export default function RecordatoriosPage() {
           frecuencia: "Mensual",
           categoria: reminder.categoria,
           user_id: reminder.user_id,
+          user_nombre: reminder.user_nombre,
           telefono_destino: reminder.telefono_destino,
           telegram_id: reminder.telegram_id,
           estado: 'pendiente'
@@ -258,11 +257,11 @@ export default function RecordatoriosPage() {
                 {isTestingBot ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send size={16} />}
                 Prueba TG
               </Button>
-              <ModalRecordatorio userCedula={profile?.cedula} userPhone={profile?.telefono} userTelegram={profile?.telegram_id} onRefresh={fetchData} />
+              <ModalRecordatorio userCedula={profile?.cedula} userNombre={profile?.nombres} userPhone={profile?.telefono} userTelegram={profile?.telegram_id} onRefresh={fetchData} />
             </div>
           </div>
 
-          <Card className="border-white/10 bg-gradient-to-br from-orange-500/10 via-transparent to-transparent">
+          <Card className="border-white/10 bg-gradient-to-br from-orange-500/10 via-transparent to-transparent rounded-3xl">
             <CardContent className="p-6 flex flex-col md:flex-row justify-between items-center gap-4">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-orange-500/20 rounded-2xl"><AlertCircle className="text-orange-500 h-8 w-8" /></div>
@@ -282,7 +281,7 @@ export default function RecordatoriosPage() {
                     const status = getStatusInfo(r.fecha_vencimiento, r.estado)
                     const Icon = status.icon
                     return (
-                    <Card key={r.id} className="bg-[#121212] border-white/5 hover:border-emerald-500/30 transition-all overflow-hidden">
+                    <Card key={r.id} className="bg-[#121212] border-white/5 hover:border-emerald-500/30 transition-all overflow-hidden rounded-2xl">
                         <CardContent className="p-0 flex items-stretch">
                             <div className={cn("w-1.5", status.class.split(' ')[0])} />
                             <div className="p-4 flex flex-col sm:flex-row items-center justify-between w-full gap-4">
@@ -303,7 +302,7 @@ export default function RecordatoriosPage() {
                                     </div>
                                     <div className="flex gap-1">
                                         <Button onClick={() => handleMarcarComoPagado(r)} variant="ghost" size="icon" className="h-9 w-9 text-emerald-500 hover:bg-emerald-500/10"><CheckCircle2 size={18}/></Button>
-                                        <ModalRecordatorio userCedula={profile?.cedula} userPhone={profile?.telefono} userTelegram={profile?.telegram_id} onRefresh={fetchData} editData={r} />
+                                        <ModalRecordatorio userCedula={profile?.cedula} userNombre={profile?.nombres} userPhone={profile?.telefono} userTelegram={profile?.telegram_id} onRefresh={fetchData} editData={r} />
                                         <Button onClick={() => handleEliminar(r.id)} variant="ghost" size="icon" className="h-9 w-9 text-rose-500 hover:bg-rose-500/10"><Trash2 size={18}/></Button>
                                     </div>
                                 </div>
