@@ -23,11 +23,15 @@ import { toast } from "sonner"
 
 // --- COMPONENTE DE FORMULARIO MODAL ---
 function ModalRecordatorio({ 
-  userCedula, 
+  userCedula,
+  userPhone,      // Nuevo: teléfono del perfil
+  userTelegram,   // Nuevo: telegram id del perfil
   onRefresh, 
   editData = null 
 }: { 
   userCedula: string, 
+  userPhone: string,
+  userTelegram: string,
   onRefresh: () => void, 
   editData?: any 
 }) {
@@ -48,6 +52,8 @@ function ModalRecordatorio({
       frecuencia: formData.get("frecuencia"),
       categoria: formData.get("categoria"),
       user_id: userCedula,
+      telefono_destino: userPhone,    // Guardamos el teléfono en el recordatorio
+      telegram_id: userTelegram,      // Guardamos el Telegram ID en el recordatorio
       estado: editData?.estado || 'pendiente'
     }
 
@@ -111,7 +117,6 @@ function ModalRecordatorio({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Frecuencia</Label>
-              <span className="text-white/20"></span>
               <Select name="frecuencia" defaultValue={editData?.frecuencia || "Mensual"}>
                 <SelectTrigger className="bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
                 <SelectContent className="bg-[#121212] border-white/10 text-white">
@@ -151,7 +156,6 @@ export default function RecordatoriosPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      // --- ANEXO: FETCH DOBLE PARA PERFIL Y FOTO ---
       const { data: profileData } = await supabase
         .from("user_profiles")
         .select("*")
@@ -169,9 +173,7 @@ export default function RecordatoriosPage() {
           ...profileData,
           avatar_url: mainProfile?.avatar_url || profileData.avatar_url
         })
-      }
 
-      if (profileData?.cedula) {
         const { data } = await supabase
           .from("recordatorios")
           .select("*")
@@ -191,20 +193,13 @@ export default function RecordatoriosPage() {
   }, [])
 
   const handleTestBot = async () => {
-    if (!profile?.telegram_id) {
-      toast.error("Vincule su Telegram ID en su perfil.");
-      return;
-    }
-
     setIsTestingBot(true);
     try {
       const url = `https://rdyaeslcznsynfgowutw.supabase.co/functions/v1/rapid-handler?type=telegram&t=${Date.now()}`;
       const response = await fetch(url, { method: 'GET', mode: 'cors' });
       const result = await response.json();
-      if (result.success || result.enviados > 0) {
-        toast.success("✅ ¡Prueba de Telegram enviada!");
-      } else {
-        toast.error("No hay recordatorios pendientes.");
+      if (result.success) {
+        toast.success("✅ Prueba de Telegram enviada");
       }
     } catch (error) {
       toast.error("Error al conectar con Telegram.");
@@ -214,26 +209,16 @@ export default function RecordatoriosPage() {
   };
 
   const handleTestWhatsApp = async () => {
-    if (!profile?.telefono) {
-      toast.error("No tienes un número de teléfono en tu perfil.");
-      return;
-    }
-
     setIsTestingWhatsApp(true);
     try {
-      const url = `https://rdyaeslcznsynfgowutw.supabase.co/functions/v1/rapid-handler?type=whatsapp&phone=${profile.telefono}&t=${Date.now()}`;
+      const url = `https://rdyaeslcznsynfgowutw.supabase.co/functions/v1/rapid-handler?type=whatsapp&t=${Date.now()}`;
       const response = await fetch(url, { method: 'GET', mode: 'cors' });
-      
-      if (!response.ok) throw new Error();
-
       const result = await response.json();
-      if (result.success || result.enviados > 0) {
-        toast.success(`✅ ¡WhatsApp enviado a ${profile.telefono}!`);
-      } else {
-        toast.error("La función no procesó el envío de WhatsApp.");
+      if (result.success) {
+        toast.success("✅ WhatsApp enviado correctamente");
       }
     } catch (error) {
-      toast.error("Error de red con el Bot de WhatsApp.");
+      toast.error("Error al conectar con WhatsApp.");
     } finally {
       setIsTestingWhatsApp(false);
     }
@@ -278,7 +263,7 @@ export default function RecordatoriosPage() {
       <div className={cn("transition-all duration-300", "lg:ml-64", sidebarCollapsed && "lg:ml-16")}>
         <TopBar 
           userName={profile ? `${profile.nombres}` : "Usuario"} 
-          avatarUrl={profile?.avatar_url} // <--- Foto conectada
+          avatarUrl={profile?.avatar_url} 
           onMenuClick={() => setMobileSidebarOpen(true)} 
         />
         
@@ -296,12 +281,8 @@ export default function RecordatoriosPage() {
                 disabled={isTestingWhatsApp || loading}
                 className="border-green-500/30 text-green-500 hover:bg-green-500/10 hover:text-green-400 gap-2 font-medium"
               >
-                {isTestingWhatsApp ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <MessageCircle size={18} className="fill-green-500/10" />
-                )}
-                {isTestingWhatsApp ? "Enviando..." : "Probar WhatsApp"}
+                {isTestingWhatsApp ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle size={18} />}
+                Pruebas WA
               </Button>
 
               <Button 
@@ -311,10 +292,15 @@ export default function RecordatoriosPage() {
                 className="border-blue-500/30 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300 gap-2"
               >
                 {isTestingBot ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send size={16} />}
-                {isTestingBot ? "Enviando..." : "Probar Telegram"}
+                Pruebas TG
               </Button>
 
-              <ModalRecordatorio userCedula={profile?.cedula} onRefresh={fetchData} />
+              <ModalRecordatorio 
+                userCedula={profile?.cedula} 
+                userPhone={profile?.telefono} 
+                userTelegram={profile?.telegram_id}
+                onRefresh={fetchData} 
+              />
             </div>
           </div>
 
@@ -383,7 +369,13 @@ export default function RecordatoriosPage() {
                                         <Button onClick={() => handleMarcarComoPagado(r.id)} variant="ghost" size="icon" className="h-9 w-9 text-emerald-500 hover:bg-emerald-500/10">
                                             <CheckCircle2 size={18}/>
                                         </Button>
-                                        <ModalRecordatorio userCedula={profile?.cedula} onRefresh={fetchData} editData={r} />
+                                        <ModalRecordatorio 
+                                          userCedula={profile?.cedula} 
+                                          userPhone={profile?.telefono}
+                                          userTelegram={profile?.telegram_id}
+                                          onRefresh={fetchData} 
+                                          editData={r} 
+                                        />
                                         <Button onClick={() => handleEliminar(r.id)} variant="ghost" size="icon" className="h-9 w-9 text-rose-500 hover:bg-rose-500/10">
                                             <Trash2 size={18}/>
                                         </Button>
