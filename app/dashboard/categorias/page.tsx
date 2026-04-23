@@ -19,12 +19,18 @@ import { useThemeSettings } from "@/lib/theme-context"
 import { startOfMonth, endOfMonth, startOfDay, endOfDay } from "date-fns"
 import { toast } from "sonner"
 
-// Mapa de iconos para renderizar según el string guardado
+// Mapa de iconos en español para el selector
 const ICON_MAP: Record<string, any> = {
-  Utensils, Car, Zap, Heart, CreditCard, ShoppingBag, Wallet
+  "Alimentación": Utensils,
+  "Transporte": Car,
+  "Servicios": Zap,
+  "Salud": Heart,
+  "Tarjetas": CreditCard,
+  "Compras": ShoppingBag,
+  "Ahorro": Wallet
 }
 
-const MONTHS = [
+const MESES = [
   { value: 0, label: "Enero" }, { value: 1, label: "Febrero" },
   { value: 2, label: "Marzo" }, { value: 3, label: "Abril" },
   { value: 4, label: "Mayo" }, { value: 5, label: "Junio" },
@@ -58,13 +64,8 @@ export default function CategoriasPage() {
       if (!profileData) return
       setProfile(profileData)
 
-      // 1. Obtener Categorías del Usuario
-      const { data: catUser } = await supabase
-        .from("categorias_personalizadas")
-        .select("*")
-        .eq("user_id", profileData.cedula)
+      const { data: catUser } = await supabase.from("categorias_personalizadas").select("*").eq("user_id", profileData.cedula)
 
-      // 2. Obtener Transacciones del mes
       const dateFrom = startOfMonth(new Date(selectedYear, selectedMonth))
       const dateTo = endOfMonth(new Date(selectedYear, selectedMonth))
       const { data: transData } = await supabase
@@ -74,10 +75,8 @@ export default function CategoriasPage() {
         .gte("created_at", startOfDay(dateFrom).toISOString())
         .lte("created_at", endOfDay(dateTo).toISOString())
 
-      // 3. Lógica de Clasificación
       const mapping: Record<string, any> = {}
       
-      // Inicializar con las categorías del usuario
       catUser?.forEach(cat => {
         mapping[cat.nombre] = { 
           ...cat, 
@@ -87,8 +86,7 @@ export default function CategoriasPage() {
         }
       })
 
-      // Categoría "Otros" por defecto
-      mapping["Otros"] = { nombre: "Otros", icon: ShoppingBag, desc: "Sin clasificar", total: 0, desglose: {}, keywords: [] }
+      mapping["Otros"] = { nombre: "Otros", icon: ShoppingBag, desc: "Gastos sin clasificar", total: 0, desglose: {}, keywords: [] }
 
       transData?.forEach(t => {
         const catLower = t.categoria?.toLowerCase() || ""
@@ -133,23 +131,23 @@ export default function CategoriasPage() {
     }
 
     const { error } = await supabase.from("categorias_personalizadas").insert([newCat])
-    if (error) toast.error(error.message)
+    if (error) toast.error("Error: " + error.message)
     else {
-      toast.success("Categoría creada");
+      toast.success("¡Categoría maestra creada!");
       fetchData();
     }
     setIsAdding(false)
   }
 
   const deleteCategory = async (id: string) => {
-    if (!confirm("¿Eliminar categoría? Los gastos volverán a 'Otros'")) return
+    if (!confirm("¿Eliminar esta categoría? Los gastos volverán a 'Otros'")) return
     const { error } = await supabase.from("categorias_personalizadas").delete().eq('id', id)
-    if (error) toast.error("Error al borrar")
+    if (error) toast.error("Error al eliminar")
     else { toast.success("Categoría eliminada"); fetchData(); }
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: theme.background_color || "#0a0a0a" }}>
+    <div className="min-h-screen bg-[#0a0a0a] text-white">
       <Sidebar collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} mobileOpen={mobileSidebarOpen} onMobileOpenChange={setMobileSidebarOpen} />
 
       <div className={cn("transition-all duration-300", "lg:ml-64", sidebarCollapsed && "lg:ml-16")}>
@@ -158,50 +156,50 @@ export default function CategoriasPage() {
         <main className="p-4 sm:p-8 max-w-5xl mx-auto space-y-8">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
             <div>
-              <h1 className="text-4xl font-black text-white">Categorías</h1>
-              <p className="text-gray-400">Gestiona cómo se clasifican tus gastos automáticamente.</p>
+              <h1 className="text-4xl font-black tracking-tight">Mis Categorías</h1>
+              <p className="text-gray-400">Personaliza cómo el sistema organiza tus finanzas.</p>
             </div>
 
             <div className="flex gap-2">
               <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 p-2 rounded-xl">
                 <CalendarIcon className="h-4 w-4 text-emerald-500 ml-1" />
-                <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="bg-transparent text-sm text-white outline-none">
-                  {MONTHS.map(m => <option key={m.value} value={m.value} className="bg-zinc-900">{m.label}</option>)}
+                <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="bg-transparent text-sm font-bold text-white outline-none cursor-pointer">
+                  {MESES.map(m => <option key={m.value} value={m.value} className="bg-zinc-900">{m.label}</option>)}
                 </select>
               </div>
 
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
-                    <Plus size={18} /> Nueva
+                  <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 font-bold shadow-lg shadow-emerald-600/10">
+                    <Plus size={18} /> Nueva Categoría
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="bg-zinc-950 border-zinc-800 text-white">
-                  <DialogHeader><DialogTitle>Crear Categoría Maestra</DialogTitle></DialogHeader>
+                <DialogContent className="bg-[#121212] border-white/10 text-white sm:max-w-[425px]">
+                  <DialogHeader><DialogTitle className="text-xl font-bold">Crear Categoría Maestra</DialogTitle></DialogHeader>
                   <form onSubmit={handleCreateCategory} className="space-y-4 pt-4">
                     <div className="space-y-2">
                       <Label>Nombre de la Categoría</Label>
-                      <Input name="nombre" placeholder="Ej: Diversión" className="bg-zinc-900 border-zinc-800" required />
+                      <Input name="nombre" placeholder="Ej: Entretenimiento" className="bg-white/5 border-white/10 text-white" required />
                     </div>
                     <div className="space-y-2">
-                      <Label>Palabras Clave (Separadas por coma)</Label>
-                      <Input name="keywords" placeholder="cine, netflix, bolos, bar" className="bg-zinc-900 border-zinc-800" required />
-                      <p className="text-[10px] text-gray-500">Si un gasto contiene alguna de estas palabras, se moverá aquí.</p>
+                      <Label>Palabras Clave (separadas por coma)</Label>
+                      <Input name="keywords" placeholder="netflix, cine, spotify, juegos" className="bg-white/5 border-white/10 text-white" required />
+                      <p className="text-[10px] text-gray-500 italic">Cualquier gasto que incluya estas palabras se clasificará aquí.</p>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label>Icono</Label>
-                            <select name="icon_name" className="w-full bg-zinc-900 border border-zinc-800 rounded-md p-2">
-                                {Object.keys(ICON_MAP).map(icon => <option key={icon} value={icon}>{icon}</option>)}
+                            <select name="icon_name" className="w-full bg-white/5 border border-white/10 rounded-md p-2 text-sm outline-none">
+                                {Object.keys(ICON_MAP).map(icon => <option key={icon} value={icon} className="bg-[#121212]">{icon}</option>)}
                             </select>
                         </div>
                         <div className="space-y-2">
                             <Label>Descripción</Label>
-                            <Input name="descripcion" placeholder="Opcional" className="bg-zinc-900 border-zinc-800" />
+                            <Input name="descripcion" placeholder="Opcional" className="bg-white/5 border-white/10 text-white" />
                         </div>
                     </div>
-                    <Button type="submit" className="w-full bg-emerald-600" disabled={isAdding}>
-                        {isAdding ? <Loader2 className="animate-spin" /> : "Guardar Categoría"}
+                    <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold" disabled={isAdding}>
+                        {isAdding ? <Loader2 className="animate-spin" /> : "Guardar Cambios"}
                     </Button>
                   </form>
                 </DialogContent>
@@ -214,36 +212,44 @@ export default function CategoriasPage() {
           ) : (
             <div className="grid gap-4">
               {grupos.map((grupo, i) => (
-                <div key={i} className="bg-zinc-900/50 border border-zinc-800 rounded-3xl overflow-hidden">
-                  <div className="p-6 flex items-center gap-6 cursor-pointer hover:bg-zinc-800/50 transition-colors" onClick={() => toggleExpand(i)}>
-                    <div className="h-14 w-14 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
+                <div key={i} className="bg-zinc-900/40 border border-white/5 rounded-3xl overflow-hidden hover:border-emerald-500/20 transition-all">
+                  <div className="p-6 flex items-center gap-6 cursor-pointer" onClick={() => toggleExpand(i)}>
+                    <div className="h-14 w-14 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
                       <grupo.icon size={28} />
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-xl font-bold text-white">{grupo.nombre}</h3>
-                      <div className="flex gap-1 mt-1">
-                        {grupo.keywords?.map((k:string) => <span key={k} className="text-[9px] bg-zinc-800 px-2 py-0.5 rounded text-gray-400">{k}</span>)}
+                      <h3 className="text-xl font-bold text-white tracking-tight">{grupo.nombre}</h3>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {grupo.keywords?.map((k:string) => <span key={k} className="text-[9px] bg-white/5 px-2 py-0.5 rounded-full text-gray-500 border border-white/5">{k}</span>)}
                       </div>
                     </div>
                     <div className="text-right mr-4">
-                      <p className="text-2xl font-black text-emerald-500">${Math.abs(grupo.total).toLocaleString()}</p>
+                      <p className="text-2xl font-black text-emerald-500 tracking-tighter">${Math.abs(grupo.total).toLocaleString()}</p>
                     </div>
-                    {grupo.id && (
-                        <Button variant="ghost" size="icon" className="text-zinc-600 hover:text-rose-500" onClick={(e) => {e.stopPropagation(); deleteCategory(grupo.id)}}>
-                            <Trash2 size={18} />
-                        </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                        {grupo.id && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-600 hover:text-rose-500 hover:bg-rose-500/10" onClick={(e) => {e.stopPropagation(); deleteCategory(grupo.id)}}>
+                                <Trash2 size={16} />
+                            </Button>
+                        )}
+                        {expandedIndex === i ? <ChevronUp className="text-zinc-500" /> : <ChevronDown className="text-zinc-500" />}
+                    </div>
                   </div>
                   
                   {expandedIndex === i && (
                     <div className="px-6 pb-6 animate-in fade-in slide-in-from-top-2">
-                      <div className="bg-black/20 rounded-2xl p-4 border border-zinc-800/50">
-                        {Object.entries(grupo.desglose).map(([tag, monto]: any) => (
-                          <div key={tag} className="flex justify-between py-2 border-b border-zinc-800/30 last:border-0 text-sm">
-                            <span className="text-gray-400">{tag}</span>
-                            <span className="font-bold text-white">${Math.abs(monto).toLocaleString()}</span>
-                          </div>
-                        ))}
+                      <div className="bg-black/40 rounded-2xl p-4 border border-white/5 space-y-1">
+                        <p className="text-[10px] font-bold text-emerald-500/50 uppercase tracking-widest mb-2 px-2">Desglose del mes</p>
+                        {Object.keys(grupo.desglose).length > 0 ? (
+                            Object.entries(grupo.desglose).map(([tag, monto]: any) => (
+                                <div key={tag} className="flex justify-between py-2.5 px-3 hover:bg-white/5 rounded-xl transition-colors text-sm">
+                                  <span className="text-gray-300 capitalize font-medium">{tag}</span>
+                                  <span className="font-bold text-white">${Math.abs(monto).toLocaleString()}</span>
+                                </div>
+                              ))
+                        ) : (
+                            <p className="text-xs text-zinc-600 text-center py-4 italic">No hay gastos este mes para esta categoría.</p>
+                        )}
                       </div>
                     </div>
                   )}
