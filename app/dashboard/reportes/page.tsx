@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from "react"
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { TopBar } from "@/components/dashboard/top-bar"
 import { cn } from "@/lib/utils"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, Calendar as CalendarIcon, FileText, TrendingUp } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
@@ -28,6 +28,8 @@ const MONTHS = [
   { value: 10, label: "Noviembre" }, { value: 11, label: "Diciembre" }
 ]
 
+const COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4"]
+
 export default function ReportesPage() {
   const supabase = createClient()
   const reportRef = useRef<HTMLDivElement>(null)
@@ -39,19 +41,16 @@ export default function ReportesPage() {
   const [isExporting, setIsExporting] = useState(false)
   const [profile, setProfile] = useState<any>(null)
 
-  // --- NUEVO FILTRO UNIFICADO ---
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth())
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
 
-  const COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4"]
-
+  // Exportación a PDF
   const exportToPDF = async () => {
     if (!reportRef.current) return
     setIsExporting(true)
-
     try {
       const scale = 2
-      const options = {
+      const dataUrl = await domtoimage.toPng(reportRef.current, {
         height: reportRef.current.scrollHeight * scale,
         width: reportRef.current.offsetWidth * scale,
         style: {
@@ -61,13 +60,10 @@ export default function ReportesPage() {
           height: `${reportRef.current.scrollHeight}px`,
           backgroundColor: "#0a0a0a"
         }
-      }
-
-      const dataUrl = await domtoimage.toPng(reportRef.current, options)
+      })
       const pdf = new jsPDF("p", "mm", "a4")
       const pdfWidth = pdf.internal.pageSize.getWidth()
       const contentHeight = (reportRef.current.scrollHeight * pdfWidth) / reportRef.current.offsetWidth
-      
       pdf.addImage(dataUrl, "PNG", 0, 0, pdfWidth, contentHeight)
       pdf.save(`Reporte_${MONTHS[selectedMonth].label}_${selectedYear}.pdf`)
     } catch (error) {
@@ -77,7 +73,7 @@ export default function ReportesPage() {
     }
   }
 
-  // --- FETCH DE DATOS ---
+  // Carga de datos
   useEffect(() => {
     async function fetchData() {
       try {
@@ -89,33 +85,22 @@ export default function ReportesPage() {
         const { data: mainProfile } = await supabase.from("profiles").select("avatar_url").eq("id", user.id).single()
         
         if (profileData) {
-          setProfile({
-            ...profileData,
-            avatar_url: mainProfile?.avatar_url || profileData.avatar_url
-          })
+          setProfile({ ...profileData, avatar_url: mainProfile?.avatar_url || profileData.avatar_url })
         }
 
-        // Definir rango basado en el mes/año seleccionado
         const dateFrom = startOfMonth(new Date(selectedYear, selectedMonth))
         const dateTo = endOfMonth(new Date(selectedYear, selectedMonth))
 
-        let query = supabase
+        const { data: transData, error } = await supabase
           .from("transacciones")
           .select("*")
+          .eq("user_id", profileData?.cedula || user.id)
           .gte("created_at", startOfDay(dateFrom).toISOString())
           .lte("created_at", endOfDay(dateTo).toISOString())
           .order("created_at", { ascending: false })
 
-        if (profileData?.cedula) {
-            query = query.eq("user_id", profileData.cedula) 
-        } else {
-            query = query.eq("user_id", user.id)
-        }
-
-        const { data: transData, error } = await query
         if (error) throw error
         setTransactions(transData || [])
-
       } catch (err) {
         console.error("Error cargando datos:", err)
       } finally {
@@ -123,7 +108,7 @@ export default function ReportesPage() {
       }
     }
     fetchData()
-  }, [supabase, selectedMonth, selectedYear, profile?.cedula])
+  }, [supabase, selectedMonth, selectedYear])
 
   const { categoryData, monthlyData, stats } = useMemo(() => {
     const cats: Record<string, number> = {}
@@ -170,136 +155,126 @@ export default function ReportesPage() {
           onMenuClick={() => setMobileSidebarOpen(true)} 
         />
 
-        <main className="p-6 space-y-6">
+        <main className="p-4 md:p-6 space-y-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <h1 className="text-3xl font-bold tracking-tight">Reporte Contable</h1>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Reporte Contable</h1>
             
-            <div className="flex items-center gap-2">
-              {/* SELECTOR UNIFICADO DE MES Y AÑO */}
-              <div className="flex items-center gap-2 bg-[#121212] p-2 rounded-xl border border-white/10">
-                <CalendarIcon className="h-4 w-4 text-emerald-500 ml-1" />
-                <select 
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                  className="bg-transparent text-sm font-medium text-white outline-none cursor-pointer"
-                >
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <div className="flex items-center gap-2 bg-[#121212] p-2 rounded-xl border border-white/10 flex-1 md:flex-none justify-center">
+                <CalendarIcon className="h-4 w-4 text-emerald-500" />
+                <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="bg-transparent text-sm font-medium outline-none cursor-pointer">
                   {MONTHS.map(m => <option key={m.value} value={m.value} className="bg-zinc-900">{m.label}</option>)}
                 </select>
-                <select 
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="bg-transparent text-sm font-medium text-white outline-none cursor-pointer border-l border-white/10 pl-2"
-                >
+                <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-transparent text-sm font-medium outline-none border-l border-white/10 pl-2">
                   {[2024, 2025, 2026].map(y => <option key={y} value={y} className="bg-zinc-900">{y}</option>)}
                 </select>
               </div>
 
-              <Button onClick={exportToPDF} disabled={isExporting || loading} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+              <Button onClick={exportToPDF} disabled={isExporting || loading} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 flex-1 md:flex-none">
                 {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText size={18} />}
-                {isExporting ? "Generando..." : "Exportar PDF"}
+                {isExporting ? "..." : "PDF"}
               </Button>
             </div>
           </div>
 
           {loading ? (
             <div className="flex flex-col items-center justify-center h-64 gap-4">
-                <Loader2 className="h-12 w-12 animate-spin text-emerald-500" />
-                <p className="text-gray-400">Cargando registros...</p>
+              <Loader2 className="h-12 w-12 animate-spin text-emerald-500" />
+              <p className="text-gray-400">Analizando finanzas...</p>
             </div>
           ) : (
-            <div ref={reportRef} className="space-y-8 p-6 bg-[#0a0a0a] rounded-xl border border-white/5">
-                {/* Cabecera del reporte */}
-                <div className="border-b border-white/10 pb-6 flex justify-between items-end">
-                  <div>
-                    <h2 className="text-2xl font-bold text-emerald-400">Mis Finanzas - Estado de Cuenta</h2>
-                    <p className="text-sm text-gray-400">Periodo: {MONTHS[selectedMonth].label} {selectedYear}</p>
-                  </div>
-                  <p className="text-[10px] text-gray-500 italic uppercase tracking-widest">Generado el: {format(new Date(), "dd/MM/yyyy HH:mm")}</p>
-                </div>
-
-                {/* Resumen de Totales */}
+            <div ref={reportRef} className="space-y-8 p-2 md:p-6 bg-[#0a0a0a] rounded-xl border border-white/5">
+                
+                {/* Resumen Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Card className="bg-[#121212] border-white/10 text-white">
-                    <div className="p-6">
-                      <p className="text-gray-500 text-xs uppercase font-semibold">Balance del Periodo</p>
-                      <h2 className={cn("text-2xl font-bold mt-1", stats.balance >= 0 ? "text-emerald-400" : "text-rose-400")}>{formatCurrency(stats.balance)}</h2>
-                    </div>
+                  <Card className="bg-[#121212] border-white/10 text-white p-6">
+                    <p className="text-gray-500 text-xs uppercase font-semibold">Balance</p>
+                    <h2 className={cn("text-xl md:text-2xl font-bold mt-1", stats.balance >= 0 ? "text-emerald-400" : "text-rose-400")}>{formatCurrency(stats.balance)}</h2>
                   </Card>
-                  <Card className="bg-[#121212] border-white/10 text-white">
-                    <div className="p-6">
-                      <p className="text-gray-500 text-xs uppercase font-semibold">Ingresos Totales</p>
-                      <h2 className="text-2xl font-bold mt-1 text-emerald-500">{formatCurrency(stats.totalIncome)}</h2>
-                    </div>
+                  <Card className="bg-[#121212] border-white/10 text-white p-6">
+                    <p className="text-gray-500 text-xs uppercase font-semibold">Ingresos</p>
+                    <h2 className="text-xl md:text-2xl font-bold mt-1 text-emerald-500">{formatCurrency(stats.totalIncome)}</h2>
                   </Card>
-                  <Card className="bg-[#121212] border-white/10 text-white">
-                    <div className="p-6">
-                      <p className="text-gray-500 text-xs uppercase font-semibold">Gastos Totales</p>
-                      <h2 className="text-2xl font-bold mt-1 text-rose-500">{formatCurrency(stats.totalExpenses)}</h2>
-                    </div>
+                  <Card className="bg-[#121212] border-white/10 text-white p-6">
+                    <p className="text-gray-500 text-xs uppercase font-semibold">Gastos</p>
+                    <h2 className="text-xl md:text-2xl font-bold mt-1 text-rose-500">{formatCurrency(stats.totalExpenses)}</h2>
                   </Card>
                 </div>
 
-                {/* Gráficas */}
+                {/* Gráficas Corregidas para Móvil */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  <div className="h-72 bg-[#121212] p-4 rounded-xl border border-white/5">
-                    <p className="text-sm font-medium mb-4 text-gray-400 text-center uppercase tracking-tighter">Comparativa Ingresos vs Gastos</p>
+                  {/* Barras */}
+                  <div className="h-80 bg-[#121212] p-4 rounded-xl border border-white/5">
+                    <p className="text-xs font-medium mb-4 text-gray-400 text-center uppercase">Ingresos vs Gastos</p>
                     <ResponsiveContainer width="100%" height="90%">
-                      <BarChart data={monthlyData}>
+                      <BarChart data={monthlyData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#262626" />
-                        <XAxis dataKey="name" stroke="#737373" />
-                        <YAxis stroke="#737373" tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
-                        <Tooltip contentStyle={{ backgroundColor: '#121212', borderColor: '#262626' }} />
-                        <Bar dataKey="ingresos" fill="#10b981" isAnimationActive={false} radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="gastos" fill="#ef4444" isAnimationActive={false} radius={[4, 4, 0, 0]} />
+                        <XAxis dataKey="name" stroke="#737373" fontSize={10} />
+                        <YAxis stroke="#737373" fontSize={10} tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
+                        <Tooltip contentStyle={{ backgroundColor: '#121212', border: '1px solid #262626' }} />
+                        <Bar dataKey="ingresos" fill="#10b981" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="gastos" fill="#ef4444" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="h-72 bg-[#121212] p-4 rounded-xl border border-white/5">
-                    <p className="text-sm font-medium mb-4 text-gray-400 text-center uppercase tracking-tighter">Distribución de Gastos</p>
-                    <ResponsiveContainer width="100%" height="90%">
+
+                  {/* Pastel Responsivo */}
+                  <div className="h-[450px] md:h-80 bg-[#121212] p-4 rounded-xl border border-white/5">
+                    <p className="text-xs font-medium mb-4 text-gray-400 text-center uppercase">Distribución de Gastos</p>
+                    <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie data={categoryData} innerRadius={50} outerRadius={70} dataKey="value" isAnimationActive={false}>
-                          {categoryData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                        <Pie 
+                          data={categoryData} 
+                          innerRadius="45%" 
+                          outerRadius="60%" 
+                          dataKey="value" 
+                          paddingAngle={5}
+                          isAnimationActive={false}
+                        >
+                          {categoryData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="none" />)}
                         </Pie>
-                        <Legend />
-                        <Tooltip contentStyle={{ backgroundColor: '#121212', borderColor: '#262626' }} />
+                        <Tooltip contentStyle={{ backgroundColor: '#121212', border: '1px solid #262626' }} />
+                        <Legend 
+                          verticalAlign="bottom" 
+                          height={150} 
+                          iconType="circle" 
+                          wrapperStyle={{ fontSize: '11px', paddingTop: '20px' }} 
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
                 </div>
 
-                {/* Tabla */}
+                {/* Tabla con Scroll Horizontal */}
                 <div className="space-y-4 pt-4">
-                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <h3 className="text-lg font-semibold flex items-center gap-2 px-2">
                     <TrendingUp size={20} className="text-emerald-500" />
-                    Listado Detallado de Movimientos
+                    Movimientos Detallados
                   </h3>
-                  <div className="overflow-hidden rounded-lg border border-white/10">
-                    <table className="w-full text-left text-sm">
-                      <thead className="bg-[#18181b] text-gray-400 border-b border-white/10">
+                  <div className="overflow-x-auto rounded-lg border border-white/10">
+                    <table className="min-w-[600px] w-full text-left text-sm">
+                      <thead className="bg-[#18181b] text-gray-400 border-b border-white/10 uppercase text-[10px] tracking-wider">
                         <tr>
-                          <th className="p-3 font-medium">Fecha</th>
-                          <th className="p-3 font-medium">Descripción</th>
-                          <th className="p-3 font-medium">Categoría</th>
-                          <th className="p-3 font-medium text-right">Monto</th>
+                          <th className="p-4 font-medium">Fecha</th>
+                          <th className="p-4 font-medium">Descripción</th>
+                          <th className="p-4 font-medium">Categoría</th>
+                          <th className="p-4 font-medium text-right">Monto</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/5">
                         {transactions.length === 0 ? (
-                            <tr>
-                                <td colSpan={4} className="p-8 text-center text-gray-500">No se encontraron movimientos en este periodo.</td>
-                            </tr>
+                            <tr><td colSpan={4} className="p-8 text-center text-gray-500">Sin registros este mes.</td></tr>
                         ) : (
                             transactions.map((t) => (
                               <tr key={t.id} className="bg-[#121212] hover:bg-white/5 transition-colors">
-                                <td className="p-3 text-gray-400 font-mono">{format(new Date(t.created_at), "dd/MM/yyyy")}</td>
-                                <td className="p-3 font-medium text-gray-200">{t.descripcion || "Sin descripción"}</td>
-                                <td className="p-3">
-                                  <span className="px-2 py-0.5 rounded-full bg-white/5 text-[10px] text-gray-300 border border-white/10 uppercase font-semibold">
+                                <td className="p-4 text-gray-400 font-mono text-xs">{format(new Date(t.created_at), "dd/MM/yy")}</td>
+                                <td className="p-4 font-medium text-gray-200">{t.descripcion || "---"}</td>
+                                <td className="p-4">
+                                  <span className="px-2 py-0.5 rounded-full bg-white/5 text-[10px] text-gray-400 border border-white/10 uppercase">
                                     {t.categoria}
                                   </span>
                                 </td>
-                                <td className={cn("p-3 text-right font-bold", t.tipo === "Ingreso" ? "text-emerald-400" : "text-rose-400")}>
+                                <td className={cn("p-4 text-right font-bold", t.tipo === "Ingreso" ? "text-emerald-400" : "text-rose-400")}>
                                   {t.tipo === "Ingreso" ? "+" : "-"}{formatCurrency(t.monto)}
                                 </td>
                               </tr>
